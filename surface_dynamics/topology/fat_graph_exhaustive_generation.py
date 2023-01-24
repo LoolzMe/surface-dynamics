@@ -37,6 +37,11 @@ def minmax(l):
             M = l[i]
     return m, M
 
+def is_bigger(value, value_max):
+    if value_max == None:
+        return True
+    
+    return value <= value_max
 
 def num_and_weighted_num(it):
     from sage.rings.integer_ring import ZZ
@@ -51,6 +56,14 @@ def num_and_weighted_num(it):
             s += QQ((1, aut.group_cardinality()))
     return n, s
 
+# TODO: transfer it to permutation.py
+def difference(vp, i, j):
+    k = 0
+    while j != i:
+        j = vp[j]
+        k += 1
+
+    return k
 
 ##########################
 # Augmentation functions #
@@ -87,6 +100,8 @@ def augment1(cm, aut_grp, g, callback):
         cm.remove_face_trisection(n)
         return
 
+    print(cm)
+
     for i in R:
         j = i
         for sj in range(fd[fl[i]]):
@@ -106,7 +121,7 @@ def augment1(cm, aut_grp, g, callback):
 
 # augment2: face split
 # (essentially the same as augment3)
-def augment2(cm, aut_grp, depth, callback):
+def augment2(cm, aut_grp, depth, max_degree, callback):
     r"""
     Given a map ``cm`` with a single vertex and automorphism group ``aut_grp``
     iterate through all its canonical extensions that are obtained by splitting
@@ -121,6 +136,8 @@ def augment2(cm, aut_grp, depth, callback):
     fp = cm._fp
     fd = cm._fd
     fl = cm._fl
+    vd = cm._vd
+    vl = cm._vl
 
     if cm._n == 0:
         # trivial map -> loop (1 vertex, 2 faces)
@@ -128,7 +145,7 @@ def augment2(cm, aut_grp, depth, callback):
         aaut_grp = cm.automorphism_group()
         callback('augment2', True, cm, aaut_grp, depth - 1)
         if depth > 1:
-            augment2(cm, aaut_grp, depth - 1, callback)
+            augment2(cm, aaut_grp, depth - 1, max_degree, callback)
         cm.remove_edge(0)
         return
 
@@ -146,9 +163,6 @@ def augment2(cm, aut_grp, depth, callback):
         if fd[i] > fdmax0:
             fdmax1 = fdmax0
             fdmax0 = fd[i]
-
-    # if callback is not None:
-    #     parent = cm.to_string()
 
     for i in R:
         j = i
@@ -168,16 +182,19 @@ def augment2(cm, aut_grp, depth, callback):
             test, aaut_grp = cm._is_canonical(n)
             callback('augment2', test, cm, aaut_grp, depth - 1)
             if test and depth > 1:
-                augment2(cm, aaut_grp, depth - 1, callback)
+                augment2(cm, aaut_grp, depth - 1, max_degree, callback)
+            # if niter == 2:
+            #     print(cm)
             cm.remove_edge(n)
             j = fp[j]
 
 
+
 # augment3: vertex split
-def augment3(cm, aut_grp, depth, min_degree, callback):
+def augment3(cm, aut_grp, depth, min_degree, max_degree, vertex_degree_exclude_dict, callback):
     r"""
-    Given a map ``cm``, its automorphism group ``aut_grp`` and a minimum
-    degree ``min_degree``, iterate through all the canonical extensions of
+    Given a map ``cm``, its automorphism group ``aut_grp``, minimum
+    degree ``min_degree``, and maximum degree ``max_degree`` iterate through all the canonical extensions of
     ``cm`` that are obtained by splitting ``depth`` times a vertices into
     two vertices.
 
@@ -195,10 +212,11 @@ def augment3(cm, aut_grp, depth, min_degree, callback):
     if cm._n == 0:
         # trivial map -> edge (2 vertices, 1 face)
         cm._set_genus0_edge()
+        
         aaut_grp = cm.automorphism_group()
         callback('augment3', True, cm, aaut_grp, depth - 1)
         if depth > 1:
-            augment3(cm, aaut_grp, depth - 1, min_degree, callback)
+            augment3(cm, aaut_grp, depth - 1, min_degree, max_degree, vertex_degree_exclude_dict, callback)
         cm.contract_edge(0)
         return
 
@@ -218,6 +236,7 @@ def augment3(cm, aut_grp, depth, min_degree, callback):
             vdmax0 = vd[i]
     min_degree_loc = max(min_degree, vdmax1)
 
+    
     for i in R:
         # vertex degrees are split as d -> (d1 + 1, d2 + 1)
         # so, if min_degree > 1 we can ignore the first/last half edges
@@ -237,13 +256,35 @@ def augment3(cm, aut_grp, depth, min_degree, callback):
             niter = vd[vl[i]] - 2 * min_degree_loc + 3
 
         for _ in range(niter):
+            k = difference(vp, i, j)
+            s = vd[vl[j]]
+            if s >= 2 * k:
+                if max_degree == None:
+                    if k in vertex_degree_exclude_dict:
+                        j = vp[j]
+                        continue
+                else:
+                    if k >= max_degree or k in vertex_degree_exclude_dict:
+                        j = vp[j]
+                        continue
+
+            else:
+                if max_degree == None:
+                    if (s - k) in vertex_degree_exclude_dict:
+                        j = vp[j]
+                        continue
+                else:
+                    if s - k >= max_degree or (s - k) in vertex_degree_exclude_dict:
+                        j = vp[j]
+                        continue
+
             cm.split_vertex(i, j)
             assert vd[vl[i]] >= min_degree_loc
             assert vd[vl[j]] >= min_degree_loc
             test, aaut_grp = cm._is_canonical(n)
             callback('augment3', test, cm, aaut_grp, depth - 1)
             if test and depth > 1:
-                augment3(cm, aaut_grp, depth - 1, min_degree, callback)
+                augment3(cm, aaut_grp, depth - 1, min_degree, max_degree, vertex_degree_exclude_dict, callback)
             cm.contract_edge(n)
             j = vp[j]
 
@@ -475,7 +516,7 @@ class FatGraphsTrace:
                 if s2 != s1:
                     f.write("""   %s [label="%s"];\n""" % (s2, 0))
                     f.write("""   %s -> %s [color="%s"];\n""" % (s1, s2, col2))
-                for cm3, a3 in augment3(cm2, a2, nnv, vertex_min_degree, intermediate):
+                for cm3, a3 in augment3(cm2, a2, nnv, vertex_min_degree, vertex_max_degree, intermediate):
                     s3 = cm3.to_string()
                     if s3 != s2:
                         f.write("""   %s [label="%s"];\n""" % (s3, 0))
@@ -487,7 +528,7 @@ class FatGraphsTrace:
 #################
 
 class StackCallback:
-    def __init__(self, gmin, gmax, fmin, fmax, emin, emax, vmin, vmax, vertex_min_degree, callback, filter):
+    def __init__(self, gmin, gmax, fmin, fmax, emin, emax, vmin, vmax, vertex_min_degree, vertex_max_degree, vertex_degree_exclude_dict, callback, filter):
         self._gmin = gmin
         self._gmax = gmax
         self._fmin = fmin
@@ -498,6 +539,8 @@ class StackCallback:
         self._vmax = vmax
         self._callback = callback
         self._vertex_min_degree = vertex_min_degree
+        self._vertex_max_degree = vertex_max_degree
+        self._vertex_degree_exclude_dict = vertex_degree_exclude_dict
         self._filter = filter
 
     def __call__(self, caller, test, cm, aut, depth):
@@ -506,6 +549,8 @@ class StackCallback:
         ne = cm._n // 2
         nf = cm._nf
         g = (-nv + ne - nf)/2 + 1
+
+
         assert nv < self._vmax and ne < self._emax and nf < self._fmax, (cm, depth)
 
         if test:
@@ -513,7 +558,7 @@ class StackCallback:
                nv >= self._vmin and \
                ne >= self._emin and \
                nf >= self._fmin and \
-               (self._vertex_min_degree <= 1 or all(d >= self._vertex_min_degree for d in cm.vertex_profile())) and \
+               (all(d >= self._vertex_min_degree and is_bigger(d, self._vertex_max_degree) for d in cm.vertex_profile())) and \
                (self._filter is None or self._filter(cm, aut)):
                 self._callback(cm, aut)
 
@@ -525,12 +570,12 @@ class StackCallback:
                     # more faces?
                     nfdepth = min(self._fmax - 2, self._emax - ne - 1)
                     if nfdepth:
-                        augment2(cm, aut, nfdepth, self)
+                        augment2(cm, aut, nfdepth, self._vertex_max_degree, self)
                     # more vertices?
                     if nf >= self._fmin:
                         nvdepth = min(self._vmax - 2, self._emax - ne - 1)
                         if nvdepth:
-                            augment3(cm, aut, nvdepth, max(1, self._vertex_min_degree), self)
+                            augment3(cm, aut, nvdepth, max(1, self._vertex_min_degree), self._vertex_max_degree, self._vertex_degree_exclude_dict, self)
 
             elif caller == 'augment2':
                 # augment2 performs face splitting
@@ -539,7 +584,7 @@ class StackCallback:
                     # more vertices?
                     nvdepth = min(self._vmax - 2, self._emax - ne - 1)
                     if nvdepth:
-                        augment3(cm, aut, nvdepth, max(1, self._vertex_min_degree), self)
+                        augment3(cm, aut, nvdepth, max(1, self._vertex_min_degree), self._vertex_max_degree, self._vertex_degree_exclude_dict, self)
 
             elif caller == 'augment3':
                 pass
@@ -555,21 +600,24 @@ class StackCallback:
         nf = 1
         g = 0
 
-        if (self._vmin <= nv < self._vmax and self._emin <= ne < self._emax and
-            self._fmin <= nf < self._fmax and self._gmin <= g < self._gmax and
-            self._vertex_min_degree == 0 and (self._filter is None or
-                                              self._filter(cm, aut))):
-            self._callback(cm, None)
+        if self._vmin <= nv < self._vmax and \
+           self._emin <= ne < self._emax and \
+           self._fmin <= nf < self._fmax and \
+           self._gmin <= g < self._gmax and \
+           self._vertex_min_degree == 0 and \
+           (self._filter is None or self._filter(cm, aut)):
+               print(self._callback)
+               self._callback(cm, None)
 
-        cm._realloc(2 * self._emax - 2)
+        cm._realloc(2*self._emax - 2)
         if self._gmax > 1:
             augment1(cm, None, self._gmax - 1, self)
         if self._gmin == 0 and self._fmax > 2:
             assert cm._n == 0, cm
-            augment2(cm, None, self._fmax - 2, self)
+            augment2(cm, None, self._fmax - 2, self._vertex_max_degree, self)
         if self._gmin == 0 and self._fmin == 1 and self._vmax > 2:
             assert cm._n == 0, cm
-            augment3(cm, None, self._vmax - 2, max(1, self._vertex_min_degree), self)
+            augment3(cm, None, self._vmax - 2, max(1, self._vertex_min_degree), self._vertex_max_degree, self._vertex_degree_exclude_dict, self)
 
 ##############
 # Main class #
@@ -720,7 +768,7 @@ class FatGraphs:
          FatGraph('(0,4,2,3)(1,5)', '(0,2)(1,3)(4,5)', '(0,4,1,2,3,5)'),
          FatGraph('(0,4,3)(1,2,5)', '(0,2)(1,3)(4,5)', '(0,1,4,2,3,5)')]
     """
-    def __init__(self, g=None, nf=None, ne=None, nv=None, vertex_min_degree=0, g_min=None, g_max=None, nf_min=None, nf_max=None, ne_min=None, ne_max=None, nv_min=None, nv_max=None):
+    def __init__(self, g=None, nf=None, ne=None, nv=None, vertex_min_degree=0, vertex_max_degree=None, vertex_degree_exclude_list=None, g_min=None, g_max=None, nf_min=None, nf_max=None, ne_min=None, ne_max=None, nv_min=None, nv_max=None):
         r"""
        INPUT:
 
@@ -733,13 +781,20 @@ class FatGraphs:
         - ``nv``, ``nv_min``, ``nv_max`` - number of vertices
 
         - ``vertex_min_degree`` - minimal degree of vertices (default to ``1``)
+
+        - ``vertex_max_degree`` - maximal degree of vertices
+
+        - ``vertex_degree_exclude_list`` - list of degree of vertices that needed to be exclude
         """
         self._gmin, self._gmax = self._get_interval(g, g_min, g_max, 0, 'g')
         self._fmin, self._fmax = self._get_interval(nf, nf_min, nf_max, 1, 'nf')
         self._vmin, self._vmax = self._get_interval(nv, nv_min, nv_max, 1, 'nv')
         self._emin, self._emax = self._get_interval(ne, ne_min, ne_max, 0, 'ne')
 
-        self._vertex_min_degree = ZZ(vertex_min_degree)
+        self._vertex_min_degree, self._vertex_max_degree = self._get_interval(None, vertex_min_degree, vertex_max_degree, 0, 'vertex_degree')
+        self._vertex_degree_exclude_dict = self._build_exclude_dict(vertex_degree_exclude_list)
+
+        # Is that needed? 
         if self._vertex_min_degree < 0:
             raise ValueError('vertex_min_degree must be non-negative')
 
@@ -768,6 +823,8 @@ class FatGraphs:
             vmin = ZZ(vmin)
         if vmin < low_bnd:
             raise ValueError("%s_min must be >= %s" % (name, low_bnd))
+        
+        
         return vmin, vmax
 
     def _adjust_bounds(self):
@@ -840,6 +897,19 @@ class FatGraphs:
         self._gmin, self._gmax = minmax([v[3] for v in P.vertices_list()])
         self._gmin = self._gmin.floor()
         self._gmax = (self._gmax + half).ceil()
+
+    def _build_exclude_dict(self, exclude_list):
+        if exclude_list == None:
+            return {}
+        
+        exclude_dict = {}
+
+        for exclude_element in exclude_list:
+            exclude_dict[exclude_element - 1] = 1
+
+        return exclude_dict
+
+        
 
     def __repr__(self):
         r"""
@@ -919,6 +989,8 @@ class FatGraphs:
                 self._emin, self._emax,
                 self._vmin, self._vmax,
                 self._vertex_min_degree,
+                self._vertex_max_degree,
+                self._vertex_degree_exclude_dict,
                 callback,
                 filter).run()
 

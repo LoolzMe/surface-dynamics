@@ -612,6 +612,7 @@ def constellation_init(vertices, edges, faces, n=None, domain=None, check=True):
     if not (nones[0] or nums[0]):
         vertices = perm_init(vertices, n, partial=True)
         if check and not perm_check(vertices):
+            print(vertices)
             raise ValueError("invalid vertex permutation")
 
     if not (nones[1] or nums[1]):
@@ -658,6 +659,24 @@ def constellation_init(vertices, edges, faces, n=None, domain=None, check=True):
 # Group operations
 #####################################################################
 
+def perm_invert_trav(l):
+    r"""The same ``perm_invert``, only through traversing in other direction
+
+    Args:
+        l (list)
+    """
+    n = len(l)
+
+    res = [-1]
+    res[0] = l[0]
+    
+    for p in l[::-1]:
+        if p != -1:
+            res.append(p)
+    res.pop()
+    
+    return res
+
 def perm_invert(l, n=None):
     r"""
     Returns the inverse of the permutation ``l``.
@@ -691,6 +710,62 @@ def perm_invert(l, n=None):
         if l[i] != -1:
             res[l[i]] = i
     return res
+
+def perm_invert_pivot(p, pivot, n=None):
+    if n is None:
+        n = 1
+        o_pivot = p[pivot]
+        while o_pivot != pivot:
+            n += 1
+    
+    inx_v = {}
+    o_pivot = p[pivot]
+    for _ in range(n):
+        inx_v[o_pivot] = pivot
+        pivot = p[pivot]
+        o_pivot = p[o_pivot]
+
+    for index in inx_v:
+        p[index] = inx_v[index]
+
+
+    return p
+
+
+def perm_invert_inplace_pivot(p, pivot, n=None):
+    """
+    Inverse in place with pivot, i. e. only one orbit of permutation
+
+    (Not finished)
+    Args:
+        p (permutation): permutation
+        pivot (int): pivot
+        n (int, optional): length. Defaults to None.
+
+    Returns:
+        permutation
+    """
+    if n is None:
+        n = len(p)
+    
+    
+    partial_perm = [pivot]
+    i = p[pivot]
+    while i != pivot:
+        i = p[i]
+        partial_perm.append(i)
+
+    j = 0
+    i = p[pivot]
+    partial_perm = partial_perm[::-1]
+    while i != pivot:
+        n_i = p[i]
+        p[i] = partial_perm[j]
+        i = n_i
+        j += 1
+
+    print(p)
+    return p
 
 def perm_invert_inplace(p, n=None):
     r"""
@@ -1449,8 +1524,17 @@ class PermutationGroupOrbit:
         self._seen = [False] * n # the elements that we already visited (dense version)
         self._elts = []          # the elements that we already visited (sparse version)
 
+    # def order(self):
+    #     return self._n
+
     def __iter__(self):
         return self
+
+    def __eq__(self, other):
+        if self.num_gens() == other.num_gens() and self.gens() == other.gens() and self._n == other._n:
+            return True
+        
+        return False
 
     def libgap_group(self):
         from sage.libs.gap.libgap import libgap

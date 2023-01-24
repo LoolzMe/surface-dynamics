@@ -9,3 +9,4 @@
 
 from .fat_graph import FatGraph
 from .fat_graph_exhaustive_generation import FatGraphs
+from .open_jacobi_exhaustive_generation import openJDGenerator, openJDLinearSpace

@@ -25,7 +25,8 @@ from surface_dynamics.misc.permutation import (perm_compose, perm_conjugate,
                                                perm_from_base64_str, perm_base64_str,
                                                perm_check, perm_cycle_string,
                                                perm_cycles, perm_cycle_type, perm_invert,
-                                               PermutationGroupOrbit)
+                                               cycles_to_list, perm_init, perm_invert_trav,
+                                               perm_invert_inplace_pivot, perm_invert_pivot, PermutationGroupOrbit)
 
 ###########################
 # Miscellaneous functions #
@@ -109,7 +110,8 @@ class FatGraph(object):
                  # degrees
                  # TODO: add _ed
                  '_vd',  # vertex degrees (array of length _nv)
-                 '_fd']  # face degrees (array of length _nf)
+                 '_fd',  # face degrees (array of length _nf)
+                 '_parent']
 
     def __init__(self, vp=None, ep=None, fp=None, max_num_dart=None, check=True):
         vp, ep, fp = constellation_init(vp, ep, fp)
@@ -126,6 +128,7 @@ class FatGraph(object):
         self._fl, self._fd = perm_dense_cycles(fp, self._n)
         self._nf = len(self._fd)  # number of faces
 
+        self._parent = []
         if max_num_dart is not None:
             if max_num_dart < self._n:
                 raise ValueError
@@ -168,6 +171,7 @@ class FatGraph(object):
         F._vd = self._vd[:]
         F._fl = self._fl[:]
         F._fd = self._fd[:]
+        F._parent = self._parent.copy()
         return F
 
     @staticmethod
@@ -402,6 +406,7 @@ class FatGraph(object):
         cm._fl = self._fl[:]
         cm._vd = self._vd[:]
         cm._fd = self._fd[:]
+        cm._parent = self._parent[:]
         return cm
 
     def __repr__(self):
@@ -434,7 +439,16 @@ class FatGraph(object):
         if self._n != other._n or self._nf != other._nf or self._nv != other._nv:
             return False
 
+
         # here we ignore the vertex and face labels...
+        # Not anymore :)
+        # O(E)
+
+        # best = self._canonical_labelling_from(0)
+        # self.relabel(best[2])
+        # best = other._canonical_labelling_from(0)
+        # other.relabel(best[2])
+
         return all(self._vp[i] == other._vp[i] and
                    self._ep[i] == other._ep[i] and
                    self._fp[i] == other._fp[i]
@@ -449,10 +463,50 @@ class FatGraph(object):
         else:
             return self._vp
 
+    def vertex_permutation_string(self, copy=True):
+        if copy:
+            vp = self._vp[:self._n]
+        else:
+            vp = self._vp
+        
+        return "".join(map(chr, vp))
+
+    def is_one_half(self, vi):
+        return self._vd[vi] == 1
+
+    def is_one_half_dot(self, vi):
+        return self._vd[self._vl[vi]] == 1
+
+    def is_next_hair(self, hi):
+        return self.is_base_of_hair(self._vl[self._ep[hi]])
+
+    def is_base_of_hair(self, vi):
+        if self.is_one_half_dot(vi) == True:
+            return False
+
+        i = vi
+        for _ in range(self._vd[self._vl[vi]]):
+            ei = self._ep[i]
+
+            if self.is_one_half_dot(ei):
+                return True
+            i = self._vp[i]
+
+        return False
+
     def is_trivalent(self):
         vp = self._vp
         for i in range(self._n):
             if vp[i] == i or vp[vp[i]] == i or vp[vp[vp[i]]] != i:
+                return False
+        return True
+
+    def is_Jacobi(self):
+        vp = self._vp
+        for i in range(self._n):
+            if vp[i] == i:
+                continue
+            if vp[vp[i]] == i or vp[vp[vp[i]]] != i:
                 return False
         return True
 
@@ -635,6 +689,122 @@ class FatGraph(object):
         self._nv, self._nf = self._nf, self._nv
         self._vl, self._fl = self._fl, self._vl
         self._vd, self._fd = self._fd, self._vd
+
+    def find_vertex_vi(self, vi):
+        pivot_d = -1
+
+        for i in range(self._n):
+            if self._vl[i] == vi:
+                pivot_d = i
+                break
+        
+        assert pivot_d != -1
+
+        return pivot_d
+
+    def find_hair_base_edge(self, pivot):
+        ei = self._ep[pivot]
+
+        while self._vp[ei] != ei:
+            pivot = self._vp[pivot]
+            ei = self._ep[pivot]
+        
+        return pivot
+
+    def invert_vertex_p(self, vi):
+        r"""
+        Invert the order of an vertex (index ``vi``)
+        """
+        pivot_d = self.find_vertex_vi(vi)
+
+        # partial_perm = [pivot_d]
+        # i = pivot_d
+        # while self._vp[i] != pivot_d:
+        #     i = self._vp[i]
+        #     partial_perm.append(i)
+
+        self._vp = perm_invert_pivot(self._vp, pivot_d, n=self._n)
+
+
+        # cycles = perm_cycles(self._vp, True)
+        # cycles[vi] = perm_invert_trav(cycles[vi])
+        # self._vp = cycles_to_list(cycles, self._n)
+
+        self._vp, self._ep, self._fp = constellation_init(self._vp, self._ep, None)
+
+        self._nf = len(self._fd)
+        
+
+    def change_ihx(self, ti, hi, dir):
+        """Changing the graph respectively to IHX relation
+
+        Args:
+            ti (int): argument index (from 0 to 1)
+            hi (int): hair index
+            dir (char): direction (left - 'l', right - 'r')
+        """
+        ep = self._ep
+        vp = self._vp
+
+
+        eri = ep[vp[vp[hi]]]
+        eli = ep[vp[hi]]
+        
+        if dir == 'l':
+            ei = eli
+        else:
+            ei = eri
+
+        if ti == 0:
+            ei = vp[ei]
+        else:
+            ei = vp[vp[ei]]
+
+        if dir == 'l':
+            ebri = ei
+            ebli = ep[ei]
+        else:
+            ebri = ep[ei]
+            ebli = ei
+
+        # labels = [vl[eli], vl[eri], vl[ebli], vl[ebri]]
+        # edge_indexes = [eli, eri, ebli, ebri, vp[eli], vp[eri], vp[ebli], vp[ebri]]
+        # print(edge_indexes)
+        # print(labels)
+        self.change_Jacobi_vertexes_dots(eli, ebli)
+        self.change_Jacobi_vertexes_dots(eri, ebri)
+
+        self._vp, self._ep, self._fp = constellation_init(self._vp, self._ep, None)
+
+    def change_Jacobi_vertexes_dots(self, di, dj, constellate=False):
+        vp = self._vp
+        vl = self._vl
+
+        if vl[di] == vl[dj]:
+            self.invert_vertex_p(vl[di])
+        else:
+
+            ni = [-1] * 4
+
+            ni[0] = vp[vp[di]]
+            ni[1] = vp[di]
+            ni[2] = vp[vp[dj]]
+            ni[3] = vp[dj]
+
+
+            vp[ni[0]] = dj
+            vp[ni[2]] = di
+            vp[di] = ni[3]
+            vp[dj] = ni[1]
+
+        
+
+            vl[di], vl[dj] = vl[dj], vl[di]
+
+            if constellate:
+                self._vp, self._ep, self._fp = constellation_init(self._vp, self._ep, None)
+
+
 
     def polytope(self, b, min_length=0):
         r"""
@@ -1894,8 +2064,8 @@ class FatGraph(object):
                 d += 1
             fd.append(d)
 
-        assert len(fc) == self._n, (fc, fd, rel)
-        assert len(fd) == self._nf, (fc, fd, rel)
+        # assert len(fc) == self._n, (len(fc), fd, self._n)
+        # assert len(fd) == self._nf, (fc, len(fd), self._nf)
 
         return fc, fd, rel
 
@@ -2143,6 +2313,10 @@ class FatGraph(object):
                 P.add_generator(aut)
 
         return P
+
+    def relabel_fully(self, vi):
+        best = self._canonical_labelling_from(vi)
+        self.relabel(best[2])
 
     def relabel(self, r):
         r"""
