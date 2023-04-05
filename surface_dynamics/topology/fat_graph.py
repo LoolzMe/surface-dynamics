@@ -735,6 +735,7 @@ class FatGraph(object):
         self._nf = len(self._fd)
         
 
+    #Checked
     def change_ihx(self, ti, hi, dir):
         """Changing the graph respectively to IHX relation
 
@@ -763,25 +764,62 @@ class FatGraph(object):
         if dir == 'l':
             ebri = ei
             ebli = ep[ei]
+            self.change_Jacobi_vertexes_dots(eri, ebri)
+            self.change_Jacobi_vertexes_dots(eli, ebli)
         else:
             ebri = ep[ei]
             ebli = ei
+            self.change_Jacobi_vertexes_dots(eli, ebli)
+            self.change_Jacobi_vertexes_dots(eri, ebri)
 
         # labels = [vl[eli], vl[eri], vl[ebli], vl[ebri]]
         # edge_indexes = [eli, eri, ebli, ebri, vp[eli], vp[eri], vp[ebli], vp[ebri]]
         # print(edge_indexes)
         # print(labels)
-        self.change_Jacobi_vertexes_dots(eli, ebli)
-        self.change_Jacobi_vertexes_dots(eri, ebri)
 
-        self._vp, self._ep, self._fp = constellation_init(self._vp, self._ep, None)
+        try:
+            self._vp, self._ep, self._fp = constellation_init(self._vp, self._ep, None)
+        except:
+            pass
+            # print(self)
+            # print("Inputs:", ti, hi, dir)
+            # print("Edge indexes:", [eli, eri, ebli, ebri, vp[eli], vp[eri], vp[ebli], vp[ebri]])
+            # raise Exception("Shit can happen to him and yo' ass") 
+
 
     def change_Jacobi_vertexes_dots(self, di, dj, constellate=False):
         vp = self._vp
         vl = self._vl
 
-        if vl[di] == vl[dj]:
+        if vl[di] == vl[dj] and di != dj:
             self.invert_vertex_p(vl[di])
+            # print(self)
+            # naive approach
+            # nii = [-1] * 3
+            # nij = [-1] * 3
+
+            # nii[0] = di
+            # nii[1] = vp[di]
+            # nii[2] = vp[vp[di]]
+
+            # nij[0] = dj
+            # nij[1] = vp[dj]
+            # nij[2] = vp[vp[dj]]
+
+            # # print(nii, nij)
+
+            # if nij[0] == nii[1]:
+            #     vp[dj] = nii[1]
+            #     vp[nii[1]] = di
+            #     vp[di] = dj
+            # else:
+            #     vp[di] = nij[1]
+            #     vp[nij[1]] = dj
+            #     vp[dj] = di
+
+
+        elif di == dj:
+            pass
         else:
 
             ni = [-1] * 4
@@ -801,8 +839,8 @@ class FatGraph(object):
 
             vl[di], vl[dj] = vl[dj], vl[di]
 
-            if constellate:
-                self._vp, self._ep, self._fp = constellation_init(self._vp, self._ep, None)
+        if constellate:
+            self._vp, self._ep, self._fp = constellation_init(self._vp, self._ep, None)
 
 
 

@@ -1530,7 +1530,22 @@ class PermutationGroupOrbit:
     def __iter__(self):
         return self
 
+    def __copy__(self):
+        perm = PermutationGroupOrbit.__new__(PermutationGroupOrbit)
+        perm._n = self._n
+        perm._gens = self._gens
+        perm._S = self._S
+        perm._s = self._s
+        perm._seen = self._seen[:]
+        perm._elts = self._elts[:]
+
+        return perm
+
+
     def __eq__(self, other):
+        if other == None:
+            return False
+
         if self.num_gens() == other.num_gens() and self.gens() == other.gens() and self._n == other._n:
             return True
         

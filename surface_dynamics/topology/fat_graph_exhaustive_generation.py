@@ -24,6 +24,8 @@ from sage.rings.rational_field import QQ
 
 from .fat_graph import FatGraph, list_extrems
 
+import surface_dynamics.misc.multiproc as mp
+
 ###########################
 # Miscellaneous functions #
 ###########################
@@ -191,7 +193,7 @@ def augment2(cm, aut_grp, depth, max_degree, callback):
 
 
 # augment3: vertex split
-def augment3(cm, aut_grp, depth, min_degree, max_degree, vertex_degree_exclude_dict, callback):
+def augment3(cm, aut_grp, depth, min_degree, max_degree, vertex_degree_exclude_dict, callback, max_depth):
     r"""
     Given a map ``cm``, its automorphism group ``aut_grp``, minimum
     degree ``min_degree``, and maximum degree ``max_degree`` iterate through all the canonical extensions of
@@ -216,7 +218,7 @@ def augment3(cm, aut_grp, depth, min_degree, max_degree, vertex_degree_exclude_d
         aaut_grp = cm.automorphism_group()
         callback('augment3', True, cm, aaut_grp, depth - 1)
         if depth > 1:
-            augment3(cm, aaut_grp, depth - 1, min_degree, max_degree, vertex_degree_exclude_dict, callback)
+            augment3(cm, aaut_grp, depth - 1, min_degree, max_degree, vertex_degree_exclude_dict, callback, max_depth)
         cm.contract_edge(0)
         return
 
@@ -255,6 +257,7 @@ def augment3(cm, aut_grp, depth, min_degree, max_degree, vertex_degree_exclude_d
                 j = vp[j]
             niter = vd[vl[i]] - 2 * min_degree_loc + 3
 
+        args = []
         for _ in range(niter):
             k = difference(vp, i, j)
             s = vd[vl[j]]
@@ -283,10 +286,31 @@ def augment3(cm, aut_grp, depth, min_degree, max_degree, vertex_degree_exclude_d
             assert vd[vl[j]] >= min_degree_loc
             test, aaut_grp = cm._is_canonical(n)
             callback('augment3', test, cm, aaut_grp, depth - 1)
-            if test and depth > 1:
-                augment3(cm, aaut_grp, depth - 1, min_degree, max_degree, vertex_degree_exclude_dict, callback)
+            if test and abs(depth - max_depth) < 1 and depth > 1:
+                # if mp.cores_left(main_process) > 2:
+                #     pool = mp.MyPool(mp.cores_left(main_process))
+                #     result = pool.starmap(augment3, [(cm, aaut_grp, depth - 1, min_degree, max_degree, vertex_degree_exclude_dict, callback, main_process)])
+                #     pool.close()
+                #     pool.join()
+                # else: 
+                new_cm = cm.__copy__()
+                if aaut_grp != None:
+                    new_aaut_grp = aaut_grp.__copy__()
+                else:
+                    new_aaut_grp = None
+
+                args.append((new_cm, new_aaut_grp, depth - 1, min_degree, max_degree, vertex_degree_exclude_dict, callback, max_depth)) 
+                # augment3(cm, aaut_grp, depth - 1, min_degree, max_degree, vertex_degree_exclude_dict, callback, max_depth)
+            elif test and depth > 1:
+                augment3(cm, aaut_grp, depth - 1, min_degree, max_degree, vertex_degree_exclude_dict, callback, max_depth)
+            else:
+                pass
+
             cm.contract_edge(n)
             j = vp[j]
+        if abs(depth - max_depth) < 1:
+            with mp.get_Pool(mp.get_cores() // 2) as pool:
+                pool.starmap(augment3, args)
 
 # TODO
 # def augment4(cm):
@@ -550,7 +574,6 @@ class StackCallback:
         nf = cm._nf
         g = (-nv + ne - nf)/2 + 1
 
-
         assert nv < self._vmax and ne < self._emax and nf < self._fmax, (cm, depth)
 
         if test:
@@ -575,7 +598,7 @@ class StackCallback:
                     if nf >= self._fmin:
                         nvdepth = min(self._vmax - 2, self._emax - ne - 1)
                         if nvdepth:
-                            augment3(cm, aut, nvdepth, max(1, self._vertex_min_degree), self._vertex_max_degree, self._vertex_degree_exclude_dict, self)
+                            augment3(cm, aut, nvdepth, max(1, self._vertex_min_degree), self._vertex_max_degree, self._vertex_degree_exclude_dict, self, self._vmax - 2)
 
             elif caller == 'augment2':
                 # augment2 performs face splitting
@@ -584,7 +607,7 @@ class StackCallback:
                     # more vertices?
                     nvdepth = min(self._vmax - 2, self._emax - ne - 1)
                     if nvdepth:
-                        augment3(cm, aut, nvdepth, max(1, self._vertex_min_degree), self._vertex_max_degree, self._vertex_degree_exclude_dict, self)
+                        augment3(cm, aut, nvdepth, max(1, self._vertex_min_degree), self._vertex_max_degree, self._vertex_degree_exclude_dict, self, self._vmax - 2)
 
             elif caller == 'augment3':
                 pass
@@ -601,13 +624,12 @@ class StackCallback:
         g = 0
 
         if self._vmin <= nv < self._vmax and \
-           self._emin <= ne < self._emax and \
-           self._fmin <= nf < self._fmax and \
-           self._gmin <= g < self._gmax and \
-           self._vertex_min_degree == 0 and \
-           (self._filter is None or self._filter(cm, aut)):
-               print(self._callback)
-               self._callback(cm, None)
+            self._emin <= ne < self._emax and \
+            self._fmin <= nf < self._fmax and \
+            self._gmin <= g < self._gmax and \
+            self._vertex_min_degree == 0 and \
+            (self._filter is None or self._filter(cm, aut)):
+                self._callback(cm, None)
 
         cm._realloc(2*self._emax - 2)
         if self._gmax > 1:
@@ -617,7 +639,7 @@ class StackCallback:
             augment2(cm, None, self._fmax - 2, self._vertex_max_degree, self)
         if self._gmin == 0 and self._fmin == 1 and self._vmax > 2:
             assert cm._n == 0, cm
-            augment3(cm, None, self._vmax - 2, max(1, self._vertex_min_degree), self._vertex_max_degree, self._vertex_degree_exclude_dict, self)
+            augment3(cm, None, self._vmax - 2, max(1, self._vertex_min_degree), self._vertex_max_degree, self._vertex_degree_exclude_dict, self, self._vmax - 2)
 
 ##############
 # Main class #
@@ -969,7 +991,7 @@ class FatGraphs:
             FatGraph('(0,5,4,6,1,2,3)(7)', '(0,2)(1,3)(4,5)(6,7)', '(0,1,2,3,6,7,4)(5)')
             FatGraph('(0,5,4,6,2,3)(1,7)', '(0,2)(1,3)(4,5)(6,7)', '(0,6,1,2,3,7,4)(5)')
             FatGraph('(0,5,6,4,1,2,3)(7)', '(0,2)(1,3)(4,5)(6,7)', '(0,1,2,3,4)(5,6,7)')
-            FatGraph('(0,5,6,1,2,3)(4,7)', '(0,2)(1,3)(4,5)(6,7)', '(0,1,2,3,6,4)(5,7)')
+     map_reduce       FatGraph('(0,5,6,1,2,3)(4,7)', '(0,2)(1,3)(4,5)(6,7)', '(0,1,2,3,6,4)(5,7)')
             FatGraph('(0,5,6,2,3)(1,7,4)', '(0,2)(1,3)(4,5)(6,7)', '(0,6,1,2,3,4)(5,7)')
             FatGraph('(0,5,6,3)(1,2,7,4)', '(0,2)(1,3)(4,5)(6,7)', '(0,1,6,2,3,4)(5,7)')
             FatGraph('(0,6,5,1,2,4,3)(7)', '(0,2)(1,3)(4,5)(6,7)', '(0,1,4,6,7)(2,3,5)')
@@ -1021,9 +1043,16 @@ class FatGraphs:
             sage: L12[0].num_vertices()
             2
         """
-        L = ListCallback()
-        self.map_reduce(L)
-        return L.list()
+
+        with mp.Manager() as manager:
+            lock = manager.Lock()
+            lister = manager.list()
+
+            L = mp.ListCallbackMultiProc(lister, lock)
+            self.map_reduce(L)
+            graphs = list(L.list())
+
+        return graphs
 
 ###################
 # Deprecated code #
