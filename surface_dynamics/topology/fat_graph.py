@@ -477,8 +477,11 @@ class FatGraph(object):
     def is_one_half_dot(self, vi):
         return self._vd[self._vl[vi]] == 1
 
+    def is_next_one_half_dot(self, vi):
+        return self._vd[self._vl[self._ep[vi]]] == 1
+
     def is_next_hair(self, hi):
-        return self.is_base_of_hair(self._vl[self._ep[hi]])
+        return self.is_base_of_hair(self._ep[hi])
 
     def is_base_of_hair(self, vi):
         if self.is_one_half_dot(vi) == True:
@@ -735,12 +738,54 @@ class FatGraph(object):
         self._nf = len(self._fd)
         
 
+    def change_ihx_edge(self, ti, ei, dir):
+        """Changing the graph respectively to IHX relation, based on edge
+
+        Args:
+            ti (int): argument index (int from 0 to 1)
+            hi (int): edge index
+            dir (char): direction (left - 'l', right - 'r')
+        """
+        ep = self._ep
+        vp = self._vp
+
+        if dir == 'l':
+            eri = ep[ei]
+            eli = ep[vp[vp[ei]]]
+        else:
+            eri = ep[ei]
+            eli = ep[vp[ei]]
+
+
+        if ti == 0:
+            ebli = vp[eri]
+            ebri = ep[ebli]
+        else:
+            ebli = vp[vp[eri]]
+            ebri = ep[ebli]
+
+        
+
+        self.change_Jacobi_vertexes_dots(eri, ebri)
+        self.change_Jacobi_vertexes_dots(eli, ebli)
+
+        try:
+            self._vp, self._ep, self._fp = constellation_init(self._vp, self._ep, None)
+        except:
+            
+            print(self)
+            print("Inputs:", ti, ei, dir)
+            print("Edge indexes:", [eli, eri, ebli, ebri, vp[eli], vp[eri], vp[ebli], vp[ebri]])
+            raise Exception("Shit can happen to him and yo' ass") 
+
+
+
     #Checked
     def change_ihx(self, ti, hi, dir):
         """Changing the graph respectively to IHX relation
 
         Args:
-            ti (int): argument index (from 0 to 1)
+            ti (int): argument index (int from 0 to 1)
             hi (int): hair index
             dir (char): direction (left - 'l', right - 'r')
         """
@@ -794,6 +839,9 @@ class FatGraph(object):
         if vl[di] == vl[dj] and di != dj:
             self.invert_vertex_p(vl[di])
             # print(self)
+
+
+            
             # naive approach
             # nii = [-1] * 3
             # nij = [-1] * 3

@@ -135,7 +135,7 @@ class IntervalExchangeTransformation:
 
         - ``lengths`` - the list of lengths
 
-        TESTS::
+        TEST::
 
             sage: from surface_dynamics import *
 
@@ -454,7 +454,7 @@ class IntervalExchangeTransformation:
             raise TypeError("unable to convert x (='%s') into a real number"  %(str(x)))
 
         if total <= 0:
-            raise ValueError("the total length must be positive, got {}".format(total))
+           raise ValueError("the total length must be positive, got {}".format(total))
 
         if inplace:
             res = self
@@ -638,7 +638,7 @@ class IntervalExchangeTransformation:
             sage: lengths = [1, a + 1, a, a + 1, 2*a - 2]
             sage: T = iet.IntervalExchangeTransformation(p, lengths)
             sage: U = T.erase_marked_points()
-            sage: U.permutation().stratum()
+            sage: U.permutation().stratum() 
             H_2(2)
             sage: assert T.sah_arnoux_fathi_invariant() == U.sah_arnoux_fathi_invariant()
 
@@ -700,7 +700,7 @@ class IntervalExchangeTransformation:
 
         i0 = tb[0] - 1
         i1 = tt[0] - 1
-        if len(newtop) > 2 and i0 > 0 and i1 > 0 and tt[i0] == i1:
+        if len(newtop) > 2  and i0 > 0 and i1 > 0 and tt[i0] == i1:
             # left end fake zero
             # the permutation looks like
             # A ... C B ...
@@ -1388,7 +1388,7 @@ class IntervalExchangeTransformation:
 
     def backward_rauzy_move(self, winner, side='right'):
         r"""
-        Return a new interval exchange transformation obtained by performing a backward Rauzy move.
+        Return a new interval exchange transformation obtained by performing a backward rauzy move.
 
         EXAMPLES::
 
@@ -1502,6 +1502,7 @@ class IntervalExchangeTransformation:
         else:
             return res
 
+
     def _rauzy_move(self, side=-1, error_on_saddles=True):
         r"""
         Perform a Rauzy move inplace
@@ -1523,7 +1524,7 @@ class IntervalExchangeTransformation:
         - ``(a,b,c)`` - a triple of letter such that the towers are obtained by
           applying the substitution `a \mapsto bc`.
 
-        TESTS::
+        TEST::
 
             sage: from surface_dynamics import *
 
@@ -1621,7 +1622,7 @@ class IntervalExchangeTransformation:
 
     def _backward_rauzy_move(self, winner, side=-1):
         r"""
-        Inplace backward Rauzy move.
+        Inplace backward rauzy move.
 
         EXAMPLES::
 
@@ -1670,7 +1671,7 @@ class IntervalExchangeTransformation:
 
         - ``m`` -- number of Rauzy made on the same side
 
-        TESTS::
+        TEST::
 
             sage: from surface_dynamics import *
 

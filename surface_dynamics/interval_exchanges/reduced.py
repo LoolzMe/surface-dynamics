@@ -70,8 +70,7 @@ from .template import RauzyDiagram, FlippedRauzyDiagram
 
 from .template import interval_conversion, side_conversion
 
-
-class ReducedPermutation(SageObject):
+class ReducedPermutation(SageObject) :
     r"""
     Template for reduced objects.
 
@@ -223,7 +222,7 @@ class ReducedPermutationIET(ReducedPermutation, OrientablePermutationIET):
         r"""
         Returns the relabelization obtained from this move.
 
-        EXAMPLES::
+        EXAMPLE::
 
             sage: from surface_dynamics import *
 
@@ -485,7 +484,7 @@ class ReducedPermutationLI(ReducedPermutation, OrientablePermutationLI):
         sage: d_red.cardinality()
         4
     """
-    def list(self):
+    def list(self) :
         r"""
         The permutations as a list of two lists.
 
@@ -500,9 +499,9 @@ class ReducedPermutationLI(ReducedPermutation, OrientablePermutationLI):
         i_a = 0
         l = [[False]*len(self._twin[0]),[False]*len(self._twin[1])]
         # False means empty here
-        for i in range(2):
-            for j in range(len(l[i])):
-                if l[i][j] is False:
+        for i in range(2) :
+            for j in range(len(l[i])) :
+                if  l[i][j] is False :
                     l[i][j] = self._alphabet[i_a]
                     l[self._twin[i][j][0]][self._twin[i][j][1]] = self._alphabet[i_a]
                     i_a += 1
@@ -694,7 +693,7 @@ class FlippedReducedPermutationLI(
         if flips:
             for i in range(2):  # False means empty here
                 for j in range(len(l[i])):
-                    if l[i][j] is False:
+                   if  l[i][j] is False:
                         l[i][j] = (self._alphabet.unrank(i_a), self._flips[i][j])
                         l[self._twin[i][j][0]][self._twin[i][j][1]] = l[i][j]
                         i_a += 1
@@ -702,7 +701,7 @@ class FlippedReducedPermutationLI(
         else:
             for i in range(2):  # False means empty here
                 for j in range(len(l[i])):
-                    if l[i][j] is False:
+                   if  l[i][j] is False:
                         l[i][j] = self._alphabet.unrank(i_a)
                         l[self._twin[i][j][0]][self._twin[i][j][1]] = l[i][j]
                         i_a += 1

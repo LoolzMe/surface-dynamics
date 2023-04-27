@@ -359,7 +359,7 @@ class RibbonGraph(SageObject):
         C = self._symmetric_group().centralizer(self.monodromy_group())
         if C.cardinality().is_one():
             return C
-
+        
         if fix_vertices or fix_edges or fix_faces:
             S = self._symmetric_group()
             B = []
@@ -813,7 +813,7 @@ class RibbonGraph(SageObject):
             sage: T,o = R.spanning_tree()
             sage: T
             Digraph on 2 vertices
-            sage: T.edges(sort=True)
+            sage: T.edges()
             [(0, 1, (3, 4))]
             sage: o
             [(1, 2)]
@@ -824,7 +824,7 @@ class RibbonGraph(SageObject):
             sage: T,o = R.spanning_tree()
             sage: T
             Digraph on 2 vertices
-            sage: T.edges(sort=True)
+            sage: T.edges()
             [(0, 1, (3, 4))]
             sage: o
             [(1, 2), (5, 6)]
@@ -916,7 +916,7 @@ class RibbonGraph(SageObject):
             spanning_tree,_ = self.spanning_tree()
 
         darts_to_kill = set([])
-        for v0,v1,e in spanning_tree.edges(sort=True):
+        for v0,v1,e in spanning_tree.edges():
             darts_to_kill.add(e[0])
             darts_to_kill.add(e[1])
 
@@ -1267,7 +1267,7 @@ class RibbonGraphWithAngles(RibbonGraph):
         Return the spin parity of the Ribbon graph with angles.
 
         The surface should be holonomy free and with odd multiple of 2 pi
-        angles. Implements the formula of [Joh80]_.
+        angles.
 
         EXAMPLES:
 

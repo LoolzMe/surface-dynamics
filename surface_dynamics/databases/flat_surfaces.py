@@ -342,7 +342,7 @@ class CylinderDiagrams(GenericRepertoryDatabase):
         r"""
         String representation.
 
-        TESTS::
+        TEST::
 
             sage: from surface_dynamics.databases.flat_surfaces import CylinderDiagrams
             sage: C = CylinderDiagrams(tmp_dir(), read_only=False)
@@ -354,7 +354,7 @@ class CylinderDiagrams(GenericRepertoryDatabase):
     def filename(self, comp, ncyls):
         r"""
         Returns the name of the file for the given component ``comp`` and the
-        given of number of cylinders ``ncyls``.
+        given of number of cyliders ``ncyls``.
 
         EXAMPLES::
 

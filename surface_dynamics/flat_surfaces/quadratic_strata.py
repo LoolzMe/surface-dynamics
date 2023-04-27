@@ -192,10 +192,10 @@ class QuadraticStratum(Stratum):
 
         if len(l) == 1 and not isinstance(l[0], numbers.Integral):
             l = l[0]
-        elif (len(l) == 3 and isinstance(l[0], tuple) and
-              isinstance(l[1], numbers.Integral) and
-              isinstance(l[2], numbers.Integral)):
-            l = l[0] + (-1,) * l[1] + (0,) * l[2]
+        elif len(l) == 3 and isinstance(l[0], tuple) and \
+             isinstance(l[1], numbers.Integral) and \
+             isinstance(l[2], numbers.Integral):
+                 l = l[0] + (-1,) * l[1] + (0,) * l[2]
 
         if not l:
             raise ValueError("the list must be nonempty")
@@ -974,20 +974,20 @@ class QuadraticStratumComponent(StratumComponent):
         Compute the `H^+` part of Lyapunov exponents spectrum.
 
         All arguments and keywords are sent to
-        ?
+        :meth:`~surface_dynamics.interval_exchanges.labelled.LabelledPermutation.lyapunov_exponents_H_plus`.
 
         EXAMPLES::
 
             sage: from surface_dynamics import *
 
             sage: R = QuadraticStratum([3,3,3,-1]).regular_component()
-            sage: R.lyapunov_exponents_H_plus(nb_iterations=2**21) # abs tol .05
+            sage: R.lyapunov_exponents_H_plus(nb_iterations=2**19) # abs tol .05
             [0.596, 0.405, 0.202]
             sage: sum(_) # abs tol .05
             1.2
 
             sage: R = QuadraticStratum([2,2,2,2]).unique_component()
-            sage: R.lyapunov_exponents_H_plus(nb_iterations=2**21) # abs tol .05
+            sage: R.lyapunov_exponents_H_plus(nb_iterations=2**19) # abs tol .05
             [0.651, 0.469, 0.243]
             sage: sum(_) # abs tol .05
             1.3636
@@ -1003,11 +1003,11 @@ class QuadraticStratumComponent(StratumComponent):
             sage: from surface_dynamics import *
 
             sage: Q = QuadraticStratum({1:3, -1:3}).unique_component()
-            sage: Q.lyapunov_exponents_H_minus(nb_iterations=2**21) # abs tol .05
+            sage: Q.lyapunov_exponents_H_minus(nb_iterations=2**20) # abs tol .05
             [1.000, 0.369, 0.176]
 
             sage: R = QuadraticStratum([3,3,3,-1]).regular_component()
-            sage: R.lyapunov_exponents_H_minus(nb_iterations=2**21) # abs tol .05
+            sage: R.lyapunov_exponents_H_minus(nb_iterations=2**19) # abs tol .05
             [1.000, 0.328, 0.1899, 0.0820]
         """
         perm = self.permutation_representative(reduced=False).orientation_cover()
@@ -2260,8 +2260,8 @@ class QuadraticStrata_gd(QuadraticStrata_class):
 
         - ``dimension`` - an integer - the dimension of strata
 
-        - ``min_nb_poles``, ``max_nb_poles`` - integers - minimum
-          and maximum number of poles
+        - ``min_nb_poles``, ``max_nb_poles - integers - minimum and maximum number of
+          poles
 
         - ``fake_zeros`` - boolean - whether fake zeros are allowed
 

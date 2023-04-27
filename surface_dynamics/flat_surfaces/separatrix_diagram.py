@@ -323,9 +323,9 @@ class SeparatrixDiagram(SageObject):
             sage: S = SeparatrixDiagram('(0,1)(2,3,4)','(0,3,2)(1,4)')
             sage: G = S.to_directed_graph(); G
             Looped multi-digraph on 5 vertices
-            sage: G.vertices(sort=True)
+            sage: G.vertices()
             [0, 1, 2, 3, 4]
-            sage: G.edges(sort=True)
+            sage: G.edges()
             [(0, 1, 'b'), (0, 3, 't'), (1, 0, 'b'), (1, 4, 't'), (2, 0, 't'), (2, 3, 'b'), (3, 2, 't'), (3, 4, 'b'), (4, 1, 't'), (4, 2, 'b')]
         """
         G = DiGraph(multiedges=True, loops=True)
@@ -1552,8 +1552,6 @@ def separatrix_diagram_fast_iterator(profile,ncyls=None):
     once in general. If you want a unique representative in each isomorphism
     class you may consider the method separatrix_diagram_iterator instead.
 
-    Uses bounds from [Nav08]_.
-
     EXAMPLES::
 
         sage: from surface_dynamics import *
@@ -2011,7 +2009,7 @@ class CylinderDiagram(SeparatrixDiagram):
     A cylinder is represented by a couple (i,j) where i is the min in bot and j
     is the min in top. The data _top_to_cyl and _bot_to_cyl corresponds to the
     association of a separatrix to the corresponding 2-tuple. The twist
-    coordinate correspond to the shift between those two indices.
+    coordinate correspond to the shift betwenn those two indices.
     """
     def __init__(self, data, check=True):
         r"""
@@ -2290,7 +2288,7 @@ class CylinderDiagram(SeparatrixDiagram):
             (0,1,5)-(2,5) (2)-(0,1,3) (3,4)-(4)
             sage: G = c.to_directed_graph(); G
             Looped multi-digraph on 6 vertices
-            sage: G.edges(sort=True)
+            sage: G.edges()
             [(0, 1, 'b'), (0, 1, 't'), (0, 2, 'c'), (0, 5, 'c'), (1, 2, 'c'), (1, 3, 't'), (1, 5, 'b'), (1, 5, 'c'), (2, 0, 'c'), (2, 1, 'c'), (2, 2, 'b'), (2, 3, 'c'), (2, 5, 't'), (3, 0, 't'), (3, 4, 'b'), (3, 4, 'c'), (4, 3, 'b'), (4, 4, 'c'), (4, 4, 't'), (5, 0, 'b'), (5, 2, 'c'), (5, 2, 't'), (5, 5, 'c')]
         """
         G = SeparatrixDiagram.to_directed_graph(self)

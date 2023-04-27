@@ -29,7 +29,7 @@ Abelian stratum at different level (approximately one for each component):
 The inverse operation (pass from an interval exchange transformation to
 the connected component) is partially written in [KonZor03]_ and
 simply named here
-?
+:meth:`~surface_dynamics.interval_exchanges.template.PermutationIET.components`.
 
 Some of the code here was first available on Mathematica [ZS]_.
 
@@ -350,7 +350,9 @@ class AbelianStratum(Stratum):
 
     def zeros(self, fake_zeros=True):
         r"""
-        Return the multiplicities of the zeros.
+        Returns the list of zeros of self.
+
+        The return list *should not* be modified
 
         EXAMPLES::
 
@@ -1267,13 +1269,13 @@ class AbelianStratumComponent(StratumComponent):
 
             sage: from surface_dynamics import *
 
-            sage: AbelianStratum(2).unique_component().lyapunov_exponents_approx(nb_iterations=2**21)  # abs tol .05
+            sage: AbelianStratum(2).unique_component().lyapunov_exponents_approx(nb_iterations=2**19)  # abs tol 0.05
             [1.000, 0.333]
 
             sage: H4hyp, H4odd = AbelianStratum(4).components()
-            sage: H4hyp.lyapunov_exponents_approx(nb_iterations=2**21) # abs tol .05
+            sage: H4hyp.lyapunov_exponents_approx(nb_iterations=2**19) # abs tol 0.05
             [1.000, 0.616, 0.184]
-            sage: H4odd.lyapunov_exponents_approx(nb_iterations=2**21) # abs tol .05
+            sage: H4odd.lyapunov_exponents_approx(nb_iterations=2**19) # abs tol 0.05
             [1.000, 0.418, 0.182]
         """
         perm = self.permutation_representative(reduced=False)
@@ -2021,7 +2023,7 @@ class AbelianStratumComponent(StratumComponent):
         elif odd_zeros == [1,1]:
             perm = only_odds_11(even_zeros)
         else:
-            if even_zeros:
+            if even_zeros != []:
                 even_perm = AbelianStratum(even_zeros).odd_component().single_cylinder_representative()
             else:
                 even_perm = GeneralizedPermutation([0],[0])
@@ -3616,7 +3618,7 @@ class AbelianStrata(Strata):
         """
         return (isinstance(other, AbelianStrata) and
                 (self._dimension == other._dimension) and
-                (self._genus == other._genus) and
+                (self._genus == other._genus)         and
                 (self._fake_zeros == other._fake_zeros))
 
     def __ne__(self, other):

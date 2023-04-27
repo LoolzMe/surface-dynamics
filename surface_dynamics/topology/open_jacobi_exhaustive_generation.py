@@ -7,6 +7,8 @@ from sage.matrix.constructor import matrix
 from sage.modules.free_module_element import vector
 import surface_dynamics.misc.multiproc as mp
 
+from collections import deque
+
 
 import json
 # from sage.vector.constructor import vector
@@ -104,6 +106,18 @@ def IHX(graph, ti, hi, dir='l'):
 
     return new_graph
 
+def IHX_edges(graph, ti, ei, dir='l'):
+    new_graph = graph.__copy__()
+
+    # print(graph)
+    # print(ti)
+    # print(hi)
+    # print(dir)
+    new_graph.change_ihx_edge(ti, ei, dir)
+    new_graph.relabel_fully(0)
+
+    return new_graph
+
 
 class openJDLinearSpace(linalg.LinearSpace):
     
@@ -117,7 +131,7 @@ class openJDLinearSpace(linalg.LinearSpace):
         self.DIR = {0: 'l', 1: 'r'}
 
         self.buildCorrDict()
-        self.reduceSpace()
+        # self.reduceSpace()
         self._bases = self._space
         self._matrix = matrix(field, [field(0)]*len(self._bases))
         # self.buildCorrDict()
@@ -133,7 +147,7 @@ class openJDLinearSpace(linalg.LinearSpace):
                 new_b.relabel_fully(r)
                 self._corr_dict[r][new_b.to_string()] = i
 
-
+    # 
     def reduceSpace(self):
         """Reduce space from identical graphs in the space
         """
@@ -226,6 +240,38 @@ class openJDLinearSpace(linalg.LinearSpace):
 
         # self.clearMatrix()
 
+
+    def reduceIHX_edges(self, base):
+
+        # using the fact that half-edges' inndexes from (0) to (nd - 1) 
+
+        b = base
+        rows = []
+
+        for i in range(self._nd):
+            if b.is_one_half_dot(i) or  b.is_one_half_dot(b._ep[i]) or b.is_next_hair(i) or not b.is_base_of_hair(i):
+                continue
+
+            for dir in range(2):
+                
+                if dir == 0 and b.is_next_one_half_dot(b._vp[b._vp[i]]):
+                    continue
+                if dir == 1 and b.is_next_one_half_dot(b._vp[i]):
+                    continue
+
+                d1 = IHX_edges(b, 0, i, self.DIR[dir])
+                d2 = IHX_edges(b, 1, i, self.DIR[dir])
+
+                di1 = self.searchRecursive(d1)
+                di2 = self.searchRecursive(d2)
+
+                if di1 == -1 or di2 == -1:
+                    continue
+
+                rows.append(self.returnEquation([1, -1, -1], [self.search(0, b), di1, di2], n=3))
+
+        return rows
+
     def reduceIHX(self, base):
         b = base
         rows = []
@@ -240,31 +286,31 @@ class openJDLinearSpace(linalg.LinearSpace):
             # hair
             if b.is_base_of_hair(pivot):
                 # print(b)
-
-                bei = b.find_hair_base_edge(pivot)
+                pass
+                # bei = b.find_hair_base_edge(pivot)
                 
-                # print(pivot)
-                for dir in range(2):
-                    branch_ei = b._ep[b._vp[bei]]
-                    if dir == 0 and (b.is_base_of_hair(branch_ei) or b._vl[bei] == b._vl[branch_ei]):
-                            continue
-                    if dir == 1 and (b.is_base_of_hair(b._ep[b._vp[b._vp[bei]]]) or b._vl[bei] == b._vl[b._ep[b._vp[b._vp[bei]]]]):
-                        continue
+                # # print(pivot)
+                # for dir in range(2):
+                #     branch_ei = b._ep[b._vp[bei]]
+                #     if dir == 0 and (b.is_base_of_hair(branch_ei) or b._vl[bei] == b._vl[branch_ei]):
+                #             continue
+                #     if dir == 1 and (b.is_base_of_hair(b._ep[b._vp[b._vp[bei]]]) or b._vl[bei] == b._vl[b._ep[b._vp[b._vp[bei]]]]):
+                #         continue
                     
-                    d1 = IHX(b, 0, bei, self.DIR[dir])
-                    d2 = IHX(b, 1, bei, self.DIR[dir])
+                #     d1 = IHX(b, 0, bei, self.DIR[dir])
+                #     d2 = IHX(b, 1, bei, self.DIR[dir])
 
-                    di1 = self.searchRecursive(d1)
-                    di2 = self.searchRecursive(d2)
+                #     di1 = self.searchRecursive(d1)
+                #     di2 = self.searchRecursive(d2)
 
-                    if di1 == -1 or di2 == -1:
-                        continue
+                #     if di1 == -1 or di2 == -1:
+                #         continue
                     
-                    # delete at the deployment
-                    if di1 == self.search(0, b) or di2 == self.search(0, b):
-                        continue
+                #     # delete at the deployment
+                #     if di1 == self.search(0, b) or di2 == self.search(0, b):
+                #         continue
 
-                    rows.append(self.returnEquation([1, -1, -1], [self.search(0, b), di1, di2], n=3))
+                #     rows.append(self.returnEquation([1, -1, -1], [self.search(0, b), di1, di2], n=3))
             
             # chord
             else:
@@ -311,60 +357,20 @@ class openJDLinearSpace(linalg.LinearSpace):
         self.changeBasesFromMatrix()
 
 
+    def reductionIHX_edges(self):
+        results = []
+
+        for base in self._bases:
+            results.append(self.reduceIHX_edges(base))
+
+
+        matrix = self.createMatrix(results)
+        self.stackMatrix(matrix)
+
+        self.changeBasesFromMatrix()
+
+
     def reductionIHX(self):
-        # for b in self._bases:
-        #     for i in range(self._nc):
-        #         if b.is_one_half(i):
-        #             continue
-
-        #         pivot = b.find_vertex_vi(i)
-
-        #         # print(b)
-        #         if b.is_base_of_hair(pivot):
-        #             # print(b)
-        #             bei = b.find_hair_base_edge(pivot)
-                    
-        #             # print(pivot)
-        #             for dir in range(2):
-        #                 branch_ei = b._ep[b._vp[bei]]
-        #                 if dir == 0 and b.is_base_of_hair(branch_ei):
-        #                         continue
-        #                 if dir == 1 and b.is_base_of_hair(b._ep[b._vp[b._ep[branch_ei]]]):
-        #                     continue
-                        
-        #                 d1 = IHX(b, 0, bei, self.DIR[dir])
-        #                 d2 = IHX(b, 1, bei, self.DIR[dir])
-
-        #                 di1 = self.searchRecursive(d1)
-        #                 di2 = self.searchRecursive(d2)
-
-        #                 if di1 == -1 or di2 == -1:
-        #                     continue
-
-        #                 self.addEquation([1, -1, -1], [self.search(0, b), di1, di2], n=3)
-                
-        #         else:
-        #             for _ in range(3):
-        #                 for dir in range(2):
-        #                     branch_ei = b._ep[b._vp[pivot]]
-        #                     if dir == 0 and b.is_base_of_hair(branch_ei):
-        #                         continue
-        #                     if dir == 1 and b.is_base_of_hair(b._ep[b._vp[b._ep[branch_ei]]]):
-        #                         continue
-                            
-        #                     d1 = IHX(b, 0, pivot, self.DIR[dir])
-        #                     d2 = IHX(b, 1, pivot, self.DIR[dir])
-
-        #                     di1 = self.searchRecursive(d1)
-        #                     di2 = self.searchRecursive(d2)
-
-        #                     if di1 == -1 or di2 == -1:
-        #                         continue
-
-        #                     self.addEquation([1, -1, -1], [self.search(0, b), di1, di2], n=3)
-
-        #             pivot = b._vp[pivot]
-
         results = []
 
         for base in self._bases:
@@ -461,6 +467,104 @@ class openJDLinearSpace(linalg.LinearSpace):
     def addRow(self, row):
         self._matrix = self._matrix.stack(vector(self._field, row))
         
+
+
+
+class dynamicJDSpace(openJDLinearSpace):
+
+    def __init__(self, nv3, nh, bases=[], field=QQ) -> None:
+        super().__init__(nv3, nh, bases, field)
+        # self.buildCorrDict()
+
+
+    def fillSpaceIHX(self, seed, n_iter=2):
+        queue = deque()
+        queue.append(seed)
+        for i in range(n_iter):
+            new_seeds = []
+            while bool(queue):
+                graph = queue.popleft()
+
+
+    def reduceIHX(self, base):
+        b = base
+        rows = []
+        for i in range(self._nc):
+            if b.is_one_half(i):
+                continue
+
+            pivot = b.find_vertex_vi(i)
+
+            # print(b)
+
+            # hair
+            if b.is_base_of_hair(pivot):
+                # print(b)
+
+                bei = b.find_hair_base_edge(pivot)
+                
+                # print(pivot)
+                for dir in range(2):
+                    branch_ei = b._ep[b._vp[bei]]
+                    if dir == 0 and (b.is_base_of_hair(branch_ei) or b._vl[bei] == b._vl[branch_ei]):
+                            continue
+                    if dir == 1 and (b.is_base_of_hair(b._ep[b._vp[b._vp[bei]]]) or b._vl[bei] == b._vl[b._ep[b._vp[b._vp[bei]]]]):
+                        continue
+                    
+                    d1 = IHX(b, 0, bei, self.DIR[dir])
+                    d2 = IHX(b, 1, bei, self.DIR[dir])
+
+                    di1 = self.searchRecursive(d1)
+                    di2 = self.searchRecursive(d2)
+
+                    if di1 == -1:
+                        pass
+                    if di2 == -1:
+                        pass
+                        
+                    
+                    # delete at the deployment
+                    # if di1 == self.search(0, b) or di2 == self.search(0, b):
+                    #     continue
+
+                    rows.append(self.returnEquation([1, -1, -1], [self.search(0, b), di1, di2], n=3))
+            
+            # chord
+            else:
+                for _ in range(3):
+                    for dir in range(2):
+                        branch_ei = b._ep[b._vp[pivot]]
+                        if dir == 0 and (b.is_base_of_hair(branch_ei) or b._vl[pivot] == b._vl[branch_ei]):
+                            continue
+                        if dir == 1 and (b.is_base_of_hair(b._ep[b._vp[b._vp[pivot]]]) or b._vl[pivot] == b._vl[b._ep[b._vp[b._vp[pivot]]]]):
+                            continue
+                        
+                        d1 = IHX(b, 0, pivot, self.DIR[dir])
+                        d2 = IHX(b, 1, pivot, self.DIR[dir])
+
+                        di1 = self.searchRecursive(d1)
+                        di2 = self.searchRecursive(d2)
+
+                        if di1 == -1 or di2 == -1:
+                            continue
+                            
+                        # delete at the deployment
+                        if di1 == self.search(0, b) or di2 == self.search(0, b):
+                            continue
+
+                        rows.append(self.returnEquation([1, -1, -1], [self.search(0, b), di1, di2], n=3))
+
+                pivot = b._vp[pivot]
+
+        return rows
+
+
+    def addDiagram(self, diagram):
+        id = len(self._space)
+        self._space.append(diagram)
+        
+        
+        return id
 
 
 
