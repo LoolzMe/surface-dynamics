@@ -103,7 +103,7 @@ def IHX(graph, ti, hi, dir='l'):
     # print(dir)
     new_graph.change_ihx(ti, hi, dir)
     new_graph.relabel_fully(0)
-
+    
     return new_graph
 
 def IHX_edges(graph, ti, ei, dir='l'):
@@ -317,9 +317,10 @@ class openJDLinearSpace(linalg.LinearSpace):
                 for _ in range(3):
                     for dir in range(2):
                         branch_ei = b._ep[b._vp[pivot]]
-                        if dir == 0 and (b.is_base_of_hair(branch_ei) or b._vl[pivot] == b._vl[branch_ei]):
+                        branch_eir = b._ep[b._vp[b._vp[pivot]]]
+                        if dir == 0 and (b.is_base_of_hair(branch_ei) or b._vl[pivot] == b._vl[branch_ei] or b.are_same_edge_nodes(pivot, b._vp[branch_ei]) or b.are_same_edge_nodes(pivot, b._vp[b._vp[branch_ei]])):
                             continue
-                        if dir == 1 and (b.is_base_of_hair(b._ep[b._vp[b._vp[pivot]]]) or b._vl[pivot] == b._vl[b._ep[b._vp[b._vp[pivot]]]]):
+                        if dir == 1 and (b.is_base_of_hair(branch_eir) or b._vl[pivot] == b._vl[branch_eir] or b.are_same_edge_nodes(pivot, b._vp[branch_eir]) or b.are_same_edge_nodes(pivot, b._vp[b._vp[branch_eir]])):
                             continue
                         
                         d1 = IHX(b, 0, pivot, self.DIR[dir])
@@ -334,7 +335,9 @@ class openJDLinearSpace(linalg.LinearSpace):
                         # delete at the deployment
                         if di1 == self.search(0, b) or di2 == self.search(0, b):
                             continue
-
+                        
+                        # print(d1, di1)
+                        # print(d2, di2)
                         rows.append(self.returnEquation([1, -1, -1], [self.search(0, b), di1, di2], n=3))
 
                 pivot = b._vp[pivot]
@@ -345,7 +348,8 @@ class openJDLinearSpace(linalg.LinearSpace):
     def reductionIHX_MP(self, cores=mp.get_cores()):
         with mp.get_Manager() as manager:
             with mp.MyPool(cores) as pool:
-                results = pool.map(self.reduceIHX, self._bases)
+                results = pool.map(self.reduceIHX_edges, self._bases)
+                results.extend(pool.map(self.reduceIHX, self._bases))
         
         # for rows in results:
         #     for row in rows:
@@ -358,7 +362,7 @@ class openJDLinearSpace(linalg.LinearSpace):
 
 
     def reductionIHX_edges(self):
-        results = []
+        results = [self._field(0)] * len(self._space)
 
         for base in self._bases:
             results.append(self.reduceIHX_edges(base))
@@ -371,7 +375,7 @@ class openJDLinearSpace(linalg.LinearSpace):
 
 
     def reductionIHX(self):
-        results = []
+        results = [self._field(0)] * len(self._space)
 
         for base in self._bases:
             results.append(self.reduceIHX(base))
@@ -381,6 +385,12 @@ class openJDLinearSpace(linalg.LinearSpace):
         self.stackMatrix(matrix)
 
         self.changeBasesFromMatrix()
+
+
+    def reductionIHX_final(self):
+        self.reductionIHX_edges()
+        self.reductionIHX()
+        
 
         
     def changeBasesFromMatrix(self):

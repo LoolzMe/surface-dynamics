@@ -480,6 +480,10 @@ class FatGraph(object):
     def is_next_one_half_dot(self, vi):
         return self._vd[self._vl[self._ep[vi]]] == 1
 
+    def are_same_edge_nodes(self, vi, gi):
+        return self._vl[vi] == self._vl[gi] or self._vl[vi] == self._vl[self._ep[gi]]
+
+
     def is_next_hair(self, hi):
         return self.is_base_of_hair(self._ep[hi])
 
@@ -791,7 +795,7 @@ class FatGraph(object):
         """
         ep = self._ep
         vp = self._vp
-
+        
 
         eri = ep[vp[vp[hi]]]
         eli = ep[vp[hi]]
@@ -816,6 +820,10 @@ class FatGraph(object):
             ebli = ei
             self.change_Jacobi_vertexes_dots(eli, ebli)
             self.change_Jacobi_vertexes_dots(eri, ebri)
+
+        # print(self)
+        # print("Inputs:", ti, hi, dir)
+        # print("Edge indexes:", [eli, eri, ebli, ebri, vp[eli], vp[eri], vp[ebli], vp[ebri]])
 
         # labels = [vl[eli], vl[eri], vl[ebli], vl[ebri]]
         # edge_indexes = [eli, eri, ebli, ebri, vp[eli], vp[eri], vp[ebli], vp[ebri]]
