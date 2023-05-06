@@ -1,3 +1,4 @@
+import itertools
 from .fat_graph import FatGraph, list_extrems
 from .fat_graph_exhaustive_generation import FatGraphs
 from surface_dynamics.misc.permutation import perm_cycles
@@ -119,6 +120,121 @@ def IHX_edges(graph, ti, ei, dir='l'):
     return new_graph
 
 
+
+def isolateGraphStructure(graph, nc=None):
+    """Generates graph structure without hairs, It's given in adjecent representation
+
+    Args:
+        graph (FatGraph): graph
+
+    Returns:
+        List: adjecent list, each object corresponds to each node
+    """
+    if nc == None:
+        nc = graph._nv
+
+    
+    indexes = {} # dict for indexes coz we need relabel vertices
+    aval_index = 0
+
+    for i in range(nc):
+        if graph.is_one_half(i):
+            continue
+
+        stable = graph.find_vertex_vi(i)
+        pivot = graph.find_vertex_vi(i)
+
+        if not i in indexes:
+            indexes[i] = aval_index
+            aval_index += 1
+
+        while True:
+            branch_i = graph._ep[pivot]
+            branch_vi = graph._vl[branch_i]
+            if not graph.is_one_half_dot(branch_i):
+                if not branch_vi in indexes:
+                    indexes[branch_vi] = aval_index
+                    aval_index += 1
+
+            pivot = graph._vp[pivot]
+
+            if pivot == stable:
+                break
+
+
+    adj_graph = [set() for _ in range(len(indexes))]
+    
+    for i in range(nc):
+        if graph.is_one_half(i):
+            continue
+
+        stable = graph.find_vertex_vi(i)
+        pivot = graph.find_vertex_vi(i)
+
+
+        while True:
+            branch_i = graph._ep[pivot]
+            branch_vi = graph._vl[branch_i]
+            if not graph.is_one_half_dot(branch_i):
+                adj_graph[indexes[branch_vi]].add(indexes[i])
+                adj_graph[indexes[i]].add(indexes[branch_vi])
+
+            pivot = graph._vp[pivot]
+
+            if pivot == stable:
+                break
+
+    
+    return [list(set_) for set_ in adj_graph]
+
+def hamiltonian_path(adj_list, path, visited, index, vortex, paths, lock):
+
+    #Base condition: if the vertex is the start vertex
+    #and all nodes have been visited (start vertex twice)
+    if vortex == 0 and index == len(adj_list):
+        with lock:
+            paths.append(path[:])
+        # return to explore more cycles
+        return
+
+    #iterate through the neighbor vertices
+    for vertex in adj_list[vortex]:
+        if visited[vertex] == 0:
+            nbr = vertex
+            #visit and add vertex to the cycle
+            visited[nbr] = 1
+            path.append(nbr)
+
+            #traverse the neighbor vertex to find the cycle
+           
+            hamiltonian_path(adj_list, path, visited, index+1, nbr, paths, lock)
+
+
+        #Backtrack
+            visited[nbr] = 0
+            path.pop()
+
+def findAllHamiltonianPaths(adj_list):
+    # Use a multiprocessing lock to synchronize access to the paths list
+    
+
+    # Create a list to store the visited vertices
+    visited = [False] * len(adj_list)
+
+    with mp.get_Manager() as manager:
+        # Call the backtracking function to find all Hamiltonian paths
+        lock = manager.Lock()
+        paths = manager.list()
+
+        
+        hamiltonian_path(adj_list, [0], visited, 0, 0, paths, lock)
+
+
+        # Return the unique paths
+        unique_paths = set(tuple(path) for path in list(paths))
+        return list(itertools.islice(unique_paths, len(unique_paths) // 2))
+
+
 class openJDLinearSpace(linalg.LinearSpace):
     
     def __init__(self, nv3, nh, bases=[], field=QQ) -> None:
@@ -134,6 +250,12 @@ class openJDLinearSpace(linalg.LinearSpace):
         # self.reduceSpace()
         self._bases = self._space
         self._matrix = matrix(field, [field(0)]*len(self._bases))
+        self._pmatrix = None
+        self._pprojector = None
+        self._phamiltonians = None
+
+        # self.constructProjMatrix()
+
         # self.buildCorrDict()
 
 
@@ -162,8 +284,6 @@ class openJDLinearSpace(linalg.LinearSpace):
                     exclude_ones[s] = 1
                     break
             
-            # if is_continue:
-            #     continue
 
         self._space = [graph for i, graph in enumerate(self._space) if not i in exclude_ones]
 
@@ -179,16 +299,11 @@ class openJDLinearSpace(linalg.LinearSpace):
             d = AS(b, i)
             di = self.searchRecursive(d)
 
-            # assert di != -1
             if di == -1:
                 continue
             
             rows.append(self.returnEquation([1, 1], [self.search(0, b), di], n=2))
 
-            # row = [self._field(0)] * len(self._bases)
-            # row[self.search(0, b)] += self._field(1)
-            # row[di] += self._field(1)
-            # self.addRow(row)
 
         return rows
 
@@ -197,9 +312,6 @@ class openJDLinearSpace(linalg.LinearSpace):
             with mp.MyPool(cores) as pool:
                 results = pool.map(self.reduceAS, self._bases)
         
-        # for rows in results:
-        #     for row in rows:
-        #         self.addRow(row)
 
         matrix = self.createMatrix(results)
         self.stackMatrix(matrix)
@@ -209,25 +321,6 @@ class openJDLinearSpace(linalg.LinearSpace):
 
 
     def reductionAS(self):
-        # for b in self._bases:
-        #     for i in range(self._nc):
-        #         if b.is_one_half(i):
-        #             continue
-
-        #         d = AS(b, i)
-        #         di = self.searchRecursive(d)
-
-        #         # assert di != -1
-        #         if di == -1:
-        #             continue
-                
-        #         self.addEquation([1, 1], [self.search(0, b), di], n=2)
-
-        #         # row = [self._field(0)] * len(self._bases)
-        #         # row[self.search(0, b)] += self._field(1)
-        #         # row[di] += self._field(1)
-        #         # self.addRow(row)
-
         results = []
 
         for base in self._bases:
@@ -391,8 +484,25 @@ class openJDLinearSpace(linalg.LinearSpace):
         self.reductionIHX_edges()
         self.reductionIHX()
         
+    
+    def constructProjMatrix(self, cores=mp.get_cores() // 2):
+        adj_diagrams = []
 
-        
+        for diagram in self._space:
+            adj_diagrams.append(isolateGraphStructure(diagram))
+
+        with mp.MyPool(cores) as pool:
+            result = pool.map(findAllHamiltonianPaths, adj_diagrams)
+
+        self._pprojector = matrix(self._field, len(self._space), len(self._space), lambda x, y : 1 if (x == y) and (len(result[x]) > 0) else 0)
+        self._phamiltonians = result
+
+    def perfectDiagramsMatrix(self):
+        # should be called after constructProjMatrix
+        # and factor space creation
+
+        self._pmatrix = self._matrix * self._pprojector
+
     def changeBasesFromMatrix(self):
         i = 0
         j = 0
