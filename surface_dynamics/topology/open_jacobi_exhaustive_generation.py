@@ -8,6 +8,8 @@ from sage.matrix.constructor import matrix
 from sage.modules.free_module_element import vector
 import surface_dynamics.misc.multiproc as mp
 
+import surface_dynamics.topology.chord_diagrams as ChDiagrams
+
 from collections import deque
 
 
@@ -18,20 +20,6 @@ from itertools import filterfalse
 
 
 ### Legacy part
-
-# def filterJacobiGraph(graph):
-    
-#     cycles = graph.vertices()
-#     for cycle in cycles:
-#         if len(cycle) == 2 or len(cycle) < 1 or len(cycle) > 3:
-#             return True
-    
-#     return False
-
-
-# def filterJacobiGraphs(graphs):
-#     new_graphs = list(filterfalse(filterJacobiGraph, graphs))
-#     return new_graphs
 
 def eqAutomorphism(aut1, aut2):
     return False
@@ -162,7 +150,7 @@ def isolateGraphStructure(graph, nc=None):
                 break
 
 
-    adj_graph = [set() for _ in range(len(indexes))]
+    adj_graph = [[] for _ in range(len(indexes))]
     
     for i in range(nc):
         if graph.is_one_half(i):
@@ -176,8 +164,8 @@ def isolateGraphStructure(graph, nc=None):
             branch_i = graph._ep[pivot]
             branch_vi = graph._vl[branch_i]
             if not graph.is_one_half_dot(branch_i):
-                adj_graph[indexes[branch_vi]].add(indexes[i])
-                adj_graph[indexes[i]].add(indexes[branch_vi])
+                # adj_graph[indexes[branch_vi]].append(indexes[i])
+                adj_graph[indexes[i]].append(indexes[branch_vi])
 
             pivot = graph._vp[pivot]
 
@@ -185,7 +173,7 @@ def isolateGraphStructure(graph, nc=None):
                 break
 
     
-    return [list(set_) for set_ in adj_graph]
+    return adj_graph
 
 def hamiltonian_path(adj_list, path, visited, index, vortex, paths, lock):
 
@@ -235,6 +223,41 @@ def findAllHamiltonianPaths(adj_list):
         return list(itertools.islice(unique_paths, len(unique_paths) // 2))
 
 
+def fromHamToCh(path, adj_list):
+    from collections import Counter
+    # result = list((Counter(x)-Counter(y)).elements())
+
+    ch_diag = []
+    links = {}
+
+    connected = list((Counter(adj_list[0])-Counter([path[1], path[-2]])).elements())
+    links[0] = [connected[0], 1]
+    links[connected[0]] = [0, 1]
+
+    index = 2
+    for i in range(1, len(path[:-1])):
+        if path[i] in links:
+            continue
+        
+        connected = list((Counter(adj_list[path[i]])-Counter([path[i-1], path[i+1]])).elements())
+        if len(connected) > 0:
+            links[path[i]] = [connected[0], index]
+            links[connected[0]] = [path[i], index]
+
+            index += 1
+
+    # print(links)
+
+    for node in path[:-1]:
+        if path[node] in links:
+            ch_diag.append(links[path[node]][1])
+
+    return ch_diag
+
+def checkVasiliy(LS, ChLS):
+    pass
+
+
 class openJDLinearSpace(linalg.LinearSpace):
     
     def __init__(self, nv3, nh, bases=[], field=QQ) -> None:
@@ -249,14 +272,25 @@ class openJDLinearSpace(linalg.LinearSpace):
         self.buildCorrDict()
         # self.reduceSpace()
         self._bases = self._space
-        self._matrix = matrix(field, [field(0)]*len(self._bases))
-        self._pmatrix = None
-        self._pprojector = None
-        self._phamiltonians = None
-
+        self._matrix = matrix(field, [field(0)]*len(self._bases), sparse=True) # Relation Matrix: R
+        self._pmatrix = None # Relation Matrix projected on Ch-t diagrams: R * P
+        self._pprojector = None # Projector matrix with Ch-t diagrams: P
+        self._phamiltonians = None # List of hamiltonian paths for every diagram in space
+        self._adj_lists = None
+        self._npmatrix = None # R * (1 - P)
+        self._rpmatrix = None # Relation matrix between Ch-t diagrams
+        self._vec_matrix = None
         # self.constructProjMatrix()
 
         # self.buildCorrDict()
+
+
+    def relationChT(self):
+
+        self.perfectDiagramsMatrix()
+
+        alpha = self._npmatrix.left_kernel()
+        return alpha
 
 
     def buildCorrDict(self):
@@ -455,26 +489,31 @@ class openJDLinearSpace(linalg.LinearSpace):
 
 
     def reductionIHX_edges(self):
-        results = [self._field(0)] * len(self._space)
+        results = []
 
         for base in self._bases:
             results.append(self.reduceIHX_edges(base))
 
 
-        matrix = self.createMatrix(results)
+        if len(results) == 0:
+            matrix = self.createMatrix([self._field(0)] * len(self._space))
+        else: 
+            matrix = self.createMatrix(results)
         self.stackMatrix(matrix)
 
         self.changeBasesFromMatrix()
 
 
     def reductionIHX(self):
-        results = [self._field(0)] * len(self._space)
+        results = []
 
         for base in self._bases:
             results.append(self.reduceIHX(base))
 
-
-        matrix = self.createMatrix(results)
+        if len(results) == 0:
+            matrix = self.createMatrix([self._field(0)] * len(self._space))
+        else: 
+            matrix = self.createMatrix(results)
         self.stackMatrix(matrix)
 
         self.changeBasesFromMatrix()
@@ -491,10 +530,12 @@ class openJDLinearSpace(linalg.LinearSpace):
         for diagram in self._space:
             adj_diagrams.append(isolateGraphStructure(diagram))
 
+        self._adj_lists = adj_diagrams
+
         with mp.MyPool(cores) as pool:
             result = pool.map(findAllHamiltonianPaths, adj_diagrams)
 
-        self._pprojector = matrix(self._field, len(self._space), len(self._space), lambda x, y : 1 if (x == y) and (len(result[x]) > 0) else 0)
+        self._pprojector = matrix(self._field, len(self._space), len(self._space), lambda x, y : 1 if (x == y) and (len(result[x]) > 0) else 0, sparse=True)
         self._phamiltonians = result
 
     def perfectDiagramsMatrix(self):
@@ -502,6 +543,55 @@ class openJDLinearSpace(linalg.LinearSpace):
         # and factor space creation
 
         self._pmatrix = self._matrix * self._pprojector
+        self._npmatrix = self._matrix * (matrix.identity(len(self._space)) - self._pprojector)
+
+
+    def findChTBases(self):
+        from itertools import combinations
+
+        self.fromDiagramsToColumn()
+
+        cht_diagrams = [index for index in range(len(self._space)) if len(self._phamiltonians[index]) > 0]
+        dim = len(self._space) - self._matrix.rank()
+
+        comb_diag = list(combinations(cht_diagrams, dim))
+
+        basis_vec = []
+        for comb in comb_diag:
+            b_matrix = self._vec_matrix.matrix_from_rows(comb)
+            if b_matrix.rank() == dim:
+                print(comb)
+                basis_vec.append(list(comb))
+
+        return basis_vec
+        
+
+    def fromDiagramsToColumn(self):
+        i = 0
+        j = 0
+        e_i = len(self._matrix.columns())
+        e_j = len(self._matrix.rows())
+        echelon_matrix = self._matrix.echelon_form()
+        self._vec_matrix = matrix.identity(self._field, len(self._space))
+
+        k = 0
+        while i != e_i and j != e_j:
+            m = echelon_matrix[j, i]
+            if m == self._field(1):
+                echelon_matrix[j, i] = 0
+                echelon_matrix.rescale_row(j, -1)
+                self._vec_matrix[k] = echelon_matrix[j]
+                i += 1
+                j += 1
+                k += 1
+            else:
+                # vector(self._field, [self._field(0)] * len(self._space))
+                # vector[i] += 1
+                # self._vec_matrix[k, i] += self._field(1)
+                i += 1
+                k += 1
+
+
 
     def changeBasesFromMatrix(self):
         i = 0
@@ -538,7 +628,7 @@ class openJDLinearSpace(linalg.LinearSpace):
 
 
     def clearMatrix(self):
-        self._matrix = matrix(self._field, [self._field(0)]*len(self._space))
+        self._matrix = matrix(self._field, [self._field(0)]*len(self._space), sparse=True)
 
     def getBasis(self):
         return self._bases
@@ -549,7 +639,7 @@ class openJDLinearSpace(linalg.LinearSpace):
     def createMatrix(self, rows):
         flat_list = [item for sublist in rows for item in sublist]
 
-        return matrix(self._field, flat_list)
+        return matrix(self._field, flat_list, sparse=True)
 
     def stackMatrix(self, matrix):
         self._matrix = self._matrix.stack(matrix)
@@ -580,7 +670,7 @@ class openJDLinearSpace(linalg.LinearSpace):
 
         row = [self._field(0)] * len(self._space)
         for value, index in zip(values, indexes):
-            row[index] += value
+            row[index] += self._field(value)
         
         return row
 
